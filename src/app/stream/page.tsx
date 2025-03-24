@@ -222,24 +222,25 @@ export default function StreamPage() {
     // Generate a unique ID for this conversation
     const conversationId = `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    // Simulate AI thinking time
-    setTimeout(() => {
-      // Generate AI response based on question
-      let aiResponse = "I'm not sure about that. Could you clarify?";
-      
-      // Simple pattern matching for demo purposes
-      const lowerQuestion = question.toLowerCase();
-      if (lowerQuestion.includes("stake") || lowerQuestion.includes("betting")) {
-        aiResponse = "Staking allows you to participate in the game by placing APT tokens. The more you stake, the higher your potential rewards!";
-      } else if (lowerQuestion.includes("count") || lowerQuestion.includes("true count")) {
-        aiResponse = "The True Count is a key metric in this game that indicates the current state of play. A positive count generally favors the player.";
-      } else if (lowerQuestion.includes("how to") || lowerQuestion.includes("tutorial")) {
-        aiResponse = "To get started, connect your wallet, watch the livestream, and place stakes using the button below the chat. Your winnings will be calculated based on the True Count and your stake amount.";
-      } else if (lowerQuestion.includes("aptos") || lowerQuestion.includes("apt")) {
-        aiResponse = "Aptos (APT) is the native token used on this platform. You can stake APT tokens to participate in the game and potentially earn rewards.";
-      } else if (lowerQuestion.includes("hello") || lowerQuestion.includes("hi")) {
-        aiResponse = "Hello! I'm your AI assistant for this stream. How can I help you today?";
+    try {
+      // Call OpenAI API route
+      const response = await fetch('/api/openai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt: question }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get AI response');
       }
+
+      const data = await response.json();
+      const aiResponse = data.response;
+      
+      // Log the response to console for function calls
+      console.log('AI Response:', aiResponse);
       
       // Store the AI conversation
       const newAiMessage = {
@@ -258,9 +259,28 @@ export default function StreamPage() {
         setShowAiToast(false);
       }, 10000);
       
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      
+      // Handle error with a fallback response
+      const newAiMessage = {
+        id: conversationId,
+        question: question,
+        answer: "Sorry, I couldn't process your request at the moment. Please try again later.",
+        timestamp: new Date()
+      };
+      
+      setAiMessages(prev => [...prev, newAiMessage]);
+      setLatestAiMessage(newAiMessage);
+      setShowAiToast(true);
+      
+      setTimeout(() => {
+        setShowAiToast(false);
+      }, 10000);
+    } finally {
       setIsAskingAI(false);
-    }, 1000);
-  }
+    }
+  };
 
   // Handle chat input submission
   const handleChatSubmit = (e: React.FormEvent) => {
