@@ -98,12 +98,19 @@ export default function StreamPage() {
   const trueCount = Number(searchParams.get('trueCount')) || 0
 
   const [count, setCount] = useState<number>(0)
-  const [messages, setMessages] = useState<Array<{ id: string; username: string; text: string; timestamp: Date }>>([])
+  const [messages, setMessages] = useState<Array<{ id: string; username: string; text: string; timestamp: Date; isAI?: boolean }>>([])
   const [totalWinnings, setTotalWinnings] = useState<number>(0)
   const [isStakeModalOpen, setIsStakeModalOpen] = useState(false)
   const [stakeAmount, setStakeAmount] = useState<number>(0.01)
   const [txnHash, setTxnHash] = useState<string | null>(null)
   const [showTxnSuccess, setShowTxnSuccess] = useState(false)
+  const [chatInput, setChatInput] = useState<string>('')
+  const [isAskingAI, setIsAskingAI] = useState<boolean>(false)
+  const [isAIChatOpen, setIsAIChatOpen] = useState<boolean>(false)
+  const [aiQuestion, setAiQuestion] = useState<string>('')
+  const [aiMessages, setAiMessages] = useState<Array<{ id: string; question: string; answer: string; timestamp: Date }>>([])
+  const [showAiToast, setShowAiToast] = useState<boolean>(false)
+  const [latestAiMessage, setLatestAiMessage] = useState<{id: string; question: string; answer: string} | null>(null)
   
   // Add ref for chat container
   const chatContainerRef = useRef<HTMLDivElement>(null)
@@ -204,6 +211,84 @@ export default function StreamPage() {
     }
   }
 
+  // Function to handle AI chat
+  const handleAIChat = async (question: string) => {
+    if (!question.trim()) return;
+    
+    // Clear input and show loading state
+    setAiQuestion('');
+    setIsAskingAI(true);
+    
+    // Generate a unique ID for this conversation
+    const conversationId = `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Simulate AI thinking time
+    setTimeout(() => {
+      // Generate AI response based on question
+      let aiResponse = "I'm not sure about that. Could you clarify?";
+      
+      // Simple pattern matching for demo purposes
+      const lowerQuestion = question.toLowerCase();
+      if (lowerQuestion.includes("stake") || lowerQuestion.includes("betting")) {
+        aiResponse = "Staking allows you to participate in the game by placing APT tokens. The more you stake, the higher your potential rewards!";
+      } else if (lowerQuestion.includes("count") || lowerQuestion.includes("true count")) {
+        aiResponse = "The True Count is a key metric in this game that indicates the current state of play. A positive count generally favors the player.";
+      } else if (lowerQuestion.includes("how to") || lowerQuestion.includes("tutorial")) {
+        aiResponse = "To get started, connect your wallet, watch the livestream, and place stakes using the button below the chat. Your winnings will be calculated based on the True Count and your stake amount.";
+      } else if (lowerQuestion.includes("aptos") || lowerQuestion.includes("apt")) {
+        aiResponse = "Aptos (APT) is the native token used on this platform. You can stake APT tokens to participate in the game and potentially earn rewards.";
+      } else if (lowerQuestion.includes("hello") || lowerQuestion.includes("hi")) {
+        aiResponse = "Hello! I'm your AI assistant for this stream. How can I help you today?";
+      }
+      
+      // Store the AI conversation
+      const newAiMessage = {
+        id: conversationId,
+        question: question,
+        answer: aiResponse,
+        timestamp: new Date()
+      };
+      
+      setAiMessages(prev => [...prev, newAiMessage]);
+      setLatestAiMessage(newAiMessage);
+      setShowAiToast(true);
+      
+      // Auto-hide the toast after 10 seconds
+      setTimeout(() => {
+        setShowAiToast(false);
+      }, 10000);
+      
+      setIsAskingAI(false);
+    }, 1000);
+  }
+
+  // Handle chat input submission
+  const handleChatSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!chatInput.trim()) return;
+    
+    // Regular chat message
+    const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    setMessages(prev => [
+      ...prev,
+      {
+        id: uniqueId,
+        username: account?.address?.toString().slice(0, 6) || "You",
+        text: chatInput,
+        timestamp: new Date()
+      }
+    ]);
+    setChatInput('');
+  };
+
+  // Handle AI question submission
+  const handleAISubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiQuestion.trim()) return;
+    handleAIChat(aiQuestion);
+  };
+
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
       <NavHeader />
@@ -242,27 +327,30 @@ export default function StreamPage() {
             </motion.div>
           </div>
 
-          {/* Right Sidebar */}
+          {/* Right Sidebar - Chat and Stake Button */}
           <div className="lg:col-span-1 min-w-0">
             <motion.div 
               initial={{ x: 20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               className="space-y-4 h-[calc(100vh-140px)] flex flex-col overflow-hidden"
             >
-              {/* Player History Section */}
-              <div className="bg-gray-800/50 rounded-lg p-4 shrink-0">
-                <h2 className="text-xl font-bold mb-4">Player History</h2>
-                <div className="bg-gray-900/50 p-4 rounded-lg">
-                  <div className="text-gray-400 text-sm mb-1">Total Winnings</div>
-                  <div className="text-2xl font-bold text-green-400">
-                    ${totalWinnings.toLocaleString()}
-                  </div>
-                </div>
-              </div>
-
               {/* Chat Section */}
               <div className="bg-gray-800/50 rounded-lg p-4 flex flex-col min-h-0 flex-1">
-                <h2 className="text-xl font-bold mb-2 shrink-0">Live Chat</h2>
+                <div className="flex justify-between items-center mb-2 shrink-0">
+                  <h2 className="text-xl font-bold">Live Chat</h2>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setIsAIChatOpen(!isAIChatOpen)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded-md flex items-center"
+                  >
+                    <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"></path>
+                    </svg>
+                    Ask AI
+                  </motion.button>
+                </div>
+                
                 <div 
                   ref={chatContainerRef}
                   className="flex-1 overflow-y-auto min-h-0 space-y-1 mb-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent"
@@ -293,7 +381,9 @@ export default function StreamPage() {
                           }}
                         >
                           <div className="flex items-center gap-2 text-xs">
-                            <span className="text-blue-400 font-medium">{msg.username}</span>
+                            <span className="text-blue-400 font-medium">
+                              {msg.username}
+                            </span>
                             <span className="text-gray-400">
                               {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
@@ -307,34 +397,71 @@ export default function StreamPage() {
 
                 {/* Chat Input and Stake Button Container */}
                 <div className="shrink-0">
-                  <div className="flex gap-2 mb-4">
+                  {/* Regular Chat Input */}
+                  <form onSubmit={handleChatSubmit} className="flex gap-2 mb-4">
                     <input 
                       type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
                       placeholder="Type a message..."
                       className="flex-1 bg-gray-700 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     />
-                    <button className="bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors text-sm">
+                    <button 
+                      type="submit"
+                      className="bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors text-sm"
+                    >
                       Send
                     </button>
-                  </div>
+                  </form>
+
+                  {/* AI Chat Input (Conditional) */}
+                  <AnimatePresence>
+                    {isAIChatOpen && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden mb-4"
+                      >
+                        <div className="bg-blue-900/30 border border-blue-800/50 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"></path>
+                            </svg>
+                            <span className="text-sm font-medium text-blue-300">Ask AI Assistant</span>
+                          </div>
+                          <form onSubmit={handleAISubmit} className="flex gap-2">
+                            <input 
+                              type="text"
+                              value={aiQuestion}
+                              onChange={(e) => setAiQuestion(e.target.value)}
+                              placeholder="Ask about the game, strategies, or rules..."
+                              className="flex-1 bg-blue-900/50 border border-blue-700 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            />
+                            <button 
+                              type="submit"
+                              className="bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors text-sm"
+                            >
+                              Ask
+                            </button>
+                          </form>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   {/* Stake Button */}
                   <div className="pt-4 border-t border-gray-700">
-                    <div className="flex flex-col space-y-4">
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => setIsStakeModalOpen(true)}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition-colors"
-                      >
-                        <span className="flex items-center justify-center">
-                          Place Your Stake
-                        </span>
-                      </motion.button>
-                      <div className="flex items-center justify-center">
-                        <VaultBalance />
-                      </div>
-                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setIsStakeModalOpen(true)}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition-colors"
+                    >
+                      <span className="flex items-center justify-center">
+                        Place Your Stake
+                      </span>
+                    </motion.button>
                   </div>
                 </div>
               </div>
@@ -342,6 +469,78 @@ export default function StreamPage() {
           </div>
         </div>
       </div>
+
+      {/* AI Chat Toast */}
+      <AnimatePresence>
+        {showAiToast && latestAiMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-4 left-4 z-50 max-w-md"
+          >
+            <div className="bg-blue-900/90 backdrop-blur-sm text-white p-4 rounded-lg shadow-lg border border-blue-700">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 pt-0.5">
+                  <svg className="h-6 w-6 text-blue-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"></path>
+                  </svg>
+                </div>
+                <div className="ml-3 flex-1">
+                  <p className="text-sm font-medium text-blue-300">AI Assistant</p>
+                  <div className="mt-1 text-sm">
+                    <div className="text-gray-300 italic mb-1">"{latestAiMessage.question}"</div>
+                    <div className="text-white">{latestAiMessage.answer}</div>
+                  </div>
+                </div>
+                <div className="ml-4 flex-shrink-0 flex">
+                  <button
+                    className="bg-transparent rounded-md inline-flex text-blue-300 hover:text-white focus:outline-none"
+                    onClick={() => setShowAiToast(false)}
+                  >
+                    <span className="sr-only">Close</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* AI Typing Indicator Toast */}
+      <AnimatePresence>
+        {isAskingAI && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-4 left-4 z-50 max-w-md"
+          >
+            <div className="bg-blue-900/90 backdrop-blur-sm text-white p-4 rounded-lg shadow-lg border border-blue-700">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 pt-0.5">
+                  <svg className="h-6 w-6 text-blue-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"></path>
+                  </svg>
+                </div>
+                <div className="ml-3 flex-1">
+                  <p className="text-sm font-medium text-blue-300">AI Assistant</p>
+                  <div className="mt-1 text-sm text-white flex items-center">
+                    <span className="inline-flex">
+                      <span className="animate-pulse">.</span>
+                      <span className="animate-pulse animation-delay-200">.</span>
+                      <span className="animate-pulse animation-delay-400">.</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Stake Modal */}
       <AnimatePresence>
